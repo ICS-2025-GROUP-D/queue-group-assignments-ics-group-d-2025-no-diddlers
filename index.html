@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Print Queue Monitor</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --high-priority: #ff6b6b;
+            --medium-priority: #ffd166;
+            --low-priority: #06d6a0;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f8f9fa;
+        }
+        
+        .priority-high {
+            border-left: 4px solid var(--high-priority);
+            background-color: rgba(255, 107, 107, 0.1);
+        }
+        
+        .priority-medium {
+            border-left: 4px solid var(--medium-priority);
+            background-color: rgba(255, 209, 102, 0.1);
+        }
+        
+        .priority-low {
+            border-left: 4px solid var(--low-priority);
+            background-color: rgba(6, 214, 160, 0.1);
+        }
+        
+        .job-card {
+            transition: all 0.3s ease;
+            margin-bottom: 10px;
+        }
+        
+        .job-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        
+        .printer-status {
+            font-weight: 600;
+        }
+        
+        .status-active {
+            color: #28a745;
+        }
+        
+        .status-idle {
+            color: #6c757d;
+        }
+        
+        .last-updated {
+            font-size: 0.85rem;
+            color: #6c757d;
+        }
+        
+        .queue-stats {
+            background-color: white;
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+    </style>
+</head>
+<body>
+    <div class="container py-4">
+        <header class="mb-4">
+            <div class="d-flex justify-content-between align-items-center">
+                <h1 class="h3 mb-0">Print Queue Monitor</h1>
+                <div class="last-updated">
+                    Last updated: <span id="update-time">{{ last_update.strftime('%Y-%m-%d %H:%M:%S') if last_update else 'Never' }}</span>
+                    <button class="btn btn-sm btn-outline-primary ms-2" onclick="refreshQueue()">
+                        <i class="bi bi-arrow-clockwise"></i> Refresh
+                    </button>
+                </div>
+            </div>
+            <hr>
+        </header>
+
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="queue-stats">
+                    <h2 class="h5">System Status</h2>
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <span class="printer-status {% if current_job %}status-active{% else %}status-idle{% endif %}">
+                                {% if current_job %}
+                                    <i class="bi bi-printer-fill"></i> Printing Job #{{ current_job.job_id }}
+                                {% else %}
+                                    <i class="bi bi-printer"></i> Printer Idle
+                                {% endif %}
+                            </span>
+                        </div>
+                        <div>
+                            <span class="badge bg-primary">Total Jobs: {{ queue|length }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="queue-stats">
+                    <h2 class="h5">Queue Statistics</h2>
+                    <div class="row">
+                        <div class="col-4">
+                            <div class="text-center">
+                                <div class="text-danger fw-bold">{{ high_priority_count }}</div>
+                                <small>High Priority</small>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="text-center">
+                                <div class="text-warning fw-bold">{{ medium_priority_count }}</div>
+                                <small>Medium Priority</small>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="text-center">
+                                <div class="text-success fw-bold">{{ low_priority_count }}</div>
+                                <small>Low Priority</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h2 class="h5 mb-0">Print Queue</h2>
+                <div>
+                    <span class="badge bg-secondary me-2">Capacity: {{ capacity }}</span>
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-secondary" onclick="sortQueue('priority')">
+                            <i class="bi bi-sort-numeric-down"></i> Priority
+                        </button>
+                        <button class="btn btn-outline-secondary" onclick="sortQueue('waiting_time')">
+                            <i class="bi bi-clock-history"></i> Wait Time
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                {% if queue %}
+                    <div class="list-group list-group-flush">
+                        {% for job in queue %}
+                            <div class="list-group-item job-card priority-{% if job.priority == 1 %}high{% elif job.priority == 2 %}medium{% else %}low{% endif %}">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <h3 class="h6 mb-1">Job #{{ job.job_id }}</h3>
+                                        <div class="d-flex text-muted small">
+                                            <span class="me-3">User: {{ job.user_id }}</span>
+                                            <span class="me-3">Priority: 
+                                                <span class="fw-bold">
+                                                    {% if job.priority == 1 %}
+                                                        <span class="text-danger">High</span>
+                                                    {% elif job.priority == 2 %}
+                                                        <span class="text-warning">Medium</span>
+                                                    {% else %}
+                                                        <span class="text-success">Low</span>
+                                                    {% endif %}
+                                                </span>
+                                            </span>
+                                            <span>Waiting: {{ job.waiting_time }} ticks</span>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <span class="badge {% if job.waiting_time > expiry_threshold*0.8 %}bg-danger{% elif job.waiting_time > expiry_threshold*0.5 %}bg-warning{% else %}bg-secondary{% endif %}">
+                                            {% if job.waiting_time > expiry_threshold %}
+                                                EXPIRED
+                                            {% else %}
+                                                {{ expiry_threshold - job.waiting_time }} ticks left
+                                            {% endif %}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="text-center py-4">
+                        <i class="bi bi-inbox" style="font-size: 2rem; color: #6c757d;"></i>
+                        <p class="mt-2 text-muted">The print queue is currently empty</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <footer class="mt-4 text-center text-muted small">
+            <p>Print Queue System | {{ queue_version }}</p>
+        </footer>
+    </div>
+
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    
+    <!-- Bootstrap JS Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        // Auto-refresh every 10 seconds
+        setInterval(refreshQueue, 10000);
+        
+        function refreshQueue() {
+            fetch(window.location.href)
+                .then(response => response.text())
+                .then(html => {
+                    const parser = new DOMParser();
+                    const newDoc = parser.parseFromString(html, 'text/html');
+                    
+                    // Update queue content
+                    document.querySelector('.list-group').innerHTML = 
+                        newDoc.querySelector('.list-group').innerHTML;
+                    
+                    // Update stats
+                    document.querySelector('.printer-status').innerHTML = 
+                        newDoc.querySelector('.printer-status').innerHTML;
+                    
+                    document.getElementById('update-time').textContent = 
+                        newDoc.getElementById('update-time').textContent;
+                    
+                    // Visual feedback
+                    const refreshBtn = document.querySelector('[onclick="refreshQueue"]');
+                    refreshBtn.innerHTML = '<i class="bi bi-check-circle"></i> Refreshed';
+                    setTimeout(() => {
+                        refreshBtn.innerHTML = '<i class="bi bi-arrow-clockwise"></i> Refresh';
+                    }, 2000);
+                });
+        }
+        
+        function sortQueue(criteria) {
+            const queueContainer = document.querySelector('.list-group');
+            const jobs = Array.from(queueContainer.children);
+            
+            jobs.sort((a, b) => {
+                if (criteria === 'priority') {
+                    return parseInt(a.querySelector('.fw-bold').dataset.priority) - 
+                           parseInt(b.querySelector('.fw-bold').dataset.priority);
+                } else {
+                    return parseInt(b.querySelector('span:nth-child(3)').textContent.split(' ')[1]) - 
+                           parseInt(a.querySelector('span:nth-child(3)').textContent.split(' ')[1]);
+                }
+            });
+            
+            // Re-append sorted jobs
+            jobs.forEach(job => queueContainer.appendChild(job));
+        }
+    </script>
+</body>
+</html>
+    
