@@ -1,7 +1,7 @@
-from Priority_AgingSystem import PrintQueueManager
+from JobSubmissionHandling import PrintQueueManager
 
 def test_handle_simultaneous_submissions():
-    pq = PrintQueueManager(capacity=5)
+    pq = PrintQueueManager(capacity=6)
     jobs = [
         {'user_id': 'U1', 'job_id': 'J1', 'priority': 1},
         {'user_id': 'U2', 'job_id': 'J2', 'priority': 2},
