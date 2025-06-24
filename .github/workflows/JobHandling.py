@@ -1,6 +1,6 @@
 import threading
 class PrintQueueManager:
-    def __init__(self, capacity=11):
+    def __init__(self, capacity=10):
         self.queue = []
         self.capacity = capacity
         self.lock = threading.Lock()
@@ -21,7 +21,7 @@ class PrintQueueManager:
 
     def handle_simultaneous_submissions(self, jobs):
         threads = []
-        for job in jobs:
+        for job in jobs: 
             user_id, job_id, priority = job
             thread = threading.Thread(target=self.enqueue_job, args=(user_id, job_id, priority))
             threads.append(thread)
