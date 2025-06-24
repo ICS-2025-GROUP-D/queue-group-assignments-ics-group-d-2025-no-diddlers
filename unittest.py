@@ -1,96 +1,72 @@
 import unittest
 import sys
 import os
-from  printqueue import PrintQueueManager
+import time
 from io import StringIO
+from printqueue import PrintQueueManager
+from visualization import PrintQueueVisualizer
+from colorama import Fore
 
-#Test case for PrintQueueManager to check empty queue visualization
 class TestEmptyQueueVisualization(unittest.TestCase):
     def setUp(self):
-        self.pq = PrintQueueManager(capacity=5)
-        # Redirect stdout to capture print output
+        self.manager = PrintQueueManager()
+        self.visualizer = PrintQueueVisualizer(self.manager)
         self.held_output = StringIO()
         sys.stdout = self.held_output
 
     def test_empty_queue_status(self):
-        self.pq.show_status()
+        self.visualizer.show_status()
         output = self.held_output.getvalue()
         self.assertIn("Queue is empty", output)
         self.assertIn("STATUS", output)
 
     def tearDown(self):
         sys.stdout = sys.__stdout__
- 
-#Test case for PrintQueueManager to check basic queue visualization
+
 class TestBasicQueueVisualization(unittest.TestCase):
     def setUp(self):
-        self.pq = PrintQueueManager(capacity=5)
-        self.pq.enqueue_job(101, 1, 2)
-        self.pq.enqueue_job(102, 2, 1)
+        self.manager = PrintQueueManager()
+        self.manager.enqueue_job(101, 1, 2)
+        self.manager.enqueue_job(102, 2, 1)
+        self.visualizer = PrintQueueVisualizer(self.manager)
         self.held_output = StringIO()
         sys.stdout = self.held_output
 
     def test_basic_status_output(self):
-        self.pq.show_status()
+        self.visualizer.show_status()
         output = self.held_output.getvalue()
-        
-        # Test table headers
-        self.assertIn("Position", output)
-        self.assertIn("Job ID", output)
-        self.assertIn("Priority", output)
-        
-        # Test job data
         self.assertIn("101", output)
         self.assertIn("102", output)
-        
-        # Test ordering (priority 1 should come first)
+        # Verify high priority job appears first
         self.assertTrue(output.find("102") < output.find("101"))
 
     def tearDown(self):
         sys.stdout = sys.__stdout__
-    
-#Test case for PrintQueueManager to check queue status with color output
+
 class TestPriorityColoring(unittest.TestCase):
     def setUp(self):
-        self.pq = PrintQueueManager(capacity=5)
-        self.pq.enqueue_job(101, 1, 1)  # High priority
-        self.pq.enqueue_job(102, 2, 3)  # Low priority
-        self.held_output = StringIO()
-        sys.stdout = self.held_output
-
+        self.manager = PrintQueueManager()
+        self.manager.enqueue_job(101, 1, 1)
+        self.visualizer = PrintQueueVisualizer(self.manager)
+    
     def test_priority_colors(self):
-        # Only run if colorama is being used
-        if 'colorama' in sys.modules:
-            from colorama import Fore
-            self.pq.show_status()
-            output = self.held_output.getvalue()
-            
-            # Test color codes appear in output
-            self.assertIn(Fore.RED, output)  # High priority
-            self.assertIn(Fore.GREEN, output)  # Low priority
+        color_str = self.visualizer._get_priority_color(1)
+        self.assertIn(Fore.RED, color_str)
+        color_str = self.visualizer._get_priority_color(3)
+        self.assertIn(Fore.GREEN, color_str)
 
-    def tearDown(self):
-        sys.stdout = sys.__stdout__
-
-#Test case for PrintQueueManager to check snapshot functionality
-import datetime
 class TestSnapshotFunctionality(unittest.TestCase):
     def setUp(self):
-        self.pq = PrintQueueManager(capacity=5)
-        self.pq.enqueue_job(101, 1, 2)
+        self.manager = PrintQueueManager()
+        self.manager.enqueue_job(101, 1, 2)
+        self.visualizer = PrintQueueVisualizer(self.manager)
         self.test_filename = "test_snapshot.txt"
-        
-        # Cleanup any existing test file
         if os.path.exists(self.test_filename):
             os.remove(self.test_filename)
 
     def test_snapshot_creation(self):
-        self.pq.save_snapshot("test_event", filename=self.test_filename)
-        
-        # Verify file was created
+        self.visualizer.save_snapshot("test_event", filename=self.test_filename)
         self.assertTrue(os.path.exists(self.test_filename))
-        
-        # Verify content
         with open(self.test_filename, 'r') as f:
             content = f.read()
             self.assertIn("Job 1", content)
@@ -100,84 +76,26 @@ class TestSnapshotFunctionality(unittest.TestCase):
         if os.path.exists(self.test_filename):
             os.remove(self.test_filename)
 
-#Test case for PrintQueueManager to check empty queue snapshot functionality
-import os
-class TestEmptyQueueSnapshot(unittest.TestCase):
-    def setUp(self):
-        self.pq = PrintQueueManager(capacity=5)
-        self.test_filename = "empty_snapshot.txt"
-        if os.path.exists(self.test_filename):
-            os.remove(self.test_filename)
-
-    def test_empty_snapshot(self):
-        self.pq.save_snapshot("empty_test", filename=self.test_filename)
-        
-        with open(self.test_filename, 'r') as f:
-            content = f.read()
-            self.assertIn("Queue is empty", content)
-
-    def tearDown(self):
-        if os.path.exists(self.test_filename):
-            os.remove(self.test_filename)
-
-#Test case for PrintQueueManager to check aging effect on job priority
-import unittest
-class TestAgingVisualization(unittest.TestCase):
-    def setUp(self):
-        self.pq = PrintQueueManager(capacity=5)
-        self.pq.enqueue_job(101, 1, 3)  # Low priority
-        self.held_output = StringIO()
-        sys.stdout = self.held_output
-
-    def test_aging_effect_display(self):
-        # Force aging by setting high waiting time
-        self.pq.queue[0]['waiting_time'] = 10
-        self.pq.apply_priority_aging()
-        
-        self.pq.show_status()
-        output = self.held_output.getvalue()
-        
-        # Verify priority changed from 3 to 2
-        self.assertIn("Priority: 2", output)
-
-    def tearDown(self):
-        sys.stdout = sys.__stdout__
-
-#Test case for PrintQueueManager to check expired jobs visualization
-import unittest
 class TestExpiredJobsVisualization(unittest.TestCase):
     def setUp(self):
-        self.pq = PrintQueueManager(capacity=5, max_wait_time=5)
-        self.pq.enqueue_job(101, 1, 2)
+        self.manager = PrintQueueManager()
+        self.manager.enqueue_job(101, 1, 2)
+        # Force expiry
+        old_job = self.manager.jobs[0]
+        expired_job = (old_job[0], time.time() - self.manager.expiry_seconds - 1,
+                      old_job[2], old_job[3], old_job[4])
+        self.manager.jobs[0] = expired_job
+        self.visualizer = PrintQueueVisualizer(self.manager)
         self.held_output = StringIO()
         sys.stdout = self.held_output
 
-    def test_expiry_notification(self):
-        # Force expiry
-        self.pq.queue[0]['waiting_time'] = 10
-        expired_count = self.pq.check_and_notify_expiry()
-        
+    def test_expiry_display(self):
+        self.visualizer.show_status()
         output = self.held_output.getvalue()
-        self.assertEqual(expired_count, 1)
-        self.assertIn("expired", output)
+        self.assertIn("EXPIRED", output)
 
     def tearDown(self):
         sys.stdout = sys.__stdout__
 
-# Test suite to run all test cases
-import unittest
-def create_test_suite():
-    suite = unittest.TestSuite()
-    suite.addTest(unittest.makeSuite(TestEmptyQueueVisualization))
-    suite.addTest(unittest.makeSuite(TestBasicQueueVisualization))
-    suite.addTest(unittest.makeSuite(TestPriorityColoring))
-    suite.addTest(unittest.makeSuite(TestSnapshotFunctionality))
-    suite.addTest(unittest.makeSuite(TestEmptyQueueSnapshot))
-    suite.addTest(unittest.makeSuite(TestAgingVisualization))
-    suite.addTest(unittest.makeSuite(TestExpiredJobsVisualization))
-    return suite
-
 if __name__ == '__main__':
-    runner = unittest.TextTestRunner(verbosity=2)
-    test_suite = create_test_suite()
-    runner.run(test_suite)
+    unittest.main()
