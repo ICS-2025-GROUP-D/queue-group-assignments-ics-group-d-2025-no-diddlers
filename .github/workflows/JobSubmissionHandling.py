@@ -1,6 +1,6 @@
 import threading
 class PrintQueueManager:
-    def __init__(self, capacity=11):
+    def __init__(self, capacity=10):
         self.queue = []
         self.capacity = capacity
         self.lock = threading.Lock()
