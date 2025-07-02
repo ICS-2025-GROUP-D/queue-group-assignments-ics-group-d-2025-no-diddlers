@@ -10,7 +10,7 @@ The code is provided in the
 
 Simply execute since all the functions have been tested with provision of output after each.
 
-###Module 6 - Sean Ndung'u - 191602
+### Module 6 - Sean Ndung'u - 191602
 1. Visualization Module (visualization.py)
 Purpose is to displays the print queue status in the terminal with color-coded priorities, expiry status, and take snapshots of the queue that are saved to txt files.
 Run with a queue manager after importing PrintqueueVisualizer.
